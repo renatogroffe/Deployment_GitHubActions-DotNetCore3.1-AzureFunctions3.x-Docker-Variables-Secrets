@@ -1,0 +1,45 @@
+name: Docker Image + Azure Container Registry + Azure Functions
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+
+  build:
+    env:
+      NOME_IMAGEM: serverless-contagem
+      NOME_FUNCTIONAPP: groffedockerserverless
+      IMAGEM_AZURE: ${{ secrets.AZURE_CONTAINER_REGISTRY_SERVER }}/$NOME_IMAGEM
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Login no Azure Container Registry
+      uses: Azure/docker-login@v1
+      with:
+        username: ${{ secrets.AZURE_CONTAINER_REGISTRY_USERNAME }}
+        password: ${{ secrets.AZURE_CONTAINER_REGISTRY_PASSWORD }}
+        login-server: ${{ secrets.AZURE_CONTAINER_REGISTRY_SERVER }}
+
+    - name: Build e Push no Azure Container Registry
+      run: |
+        cd ./ServerlessContagem
+        docker build . --file Dockerfile --tag ${{ env.IMAGEM_AZURE }}:latest
+        docker tag ${{ env.IMAGEM_AZURE }}:latest ${{ env.IMAGEM_AZURE }}:$GITHUB_RUN_NUMBER
+        docker push ${{ env.IMAGEM_AZURE }}
+        
+    - name: Azure Login - Conectando com Credenciais no Azure
+      uses: Azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+    - name: Azure Functions Container Action
+      uses: Azure/functions-container-action@v1.0.1
+      with:
+        app-name: ${{ env.NOME_FUNCTIONAPP }}
+        image: groffegithubactions.azurecr.io/serverless-contagem:latest
